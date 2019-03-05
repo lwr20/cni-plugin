@@ -60,7 +60,7 @@ var _ = Describe("CalicoCni", func() {
 
 	cniVersion := os.Getenv("CNI_SPEC_VERSION")
 
-	Context("song using host-local IPAM", func() {
+	Context("using host-local IPAM", func() {
 		netconf := fmt.Sprintf(`
 		{
 		  "cniVersion": "%s",
