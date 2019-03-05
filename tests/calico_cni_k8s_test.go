@@ -80,6 +80,32 @@ func ensurePodDeleted(clientset *kubernetes.Clientset, ns string, podName string
 	}, "5s", "200ms").Should(BeNil())
 }
 
+func ensureNodeDeleted(clientset *kubernetes.Clientset, nodeName string) {
+	// Check if node exists first.
+	_, err := clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+	if kerrors.IsNotFound(err) {
+		// Node has been deleted already. Do nothing.
+		return
+	}
+	Expect(err).NotTo(HaveOccurred())
+
+	// Delete node immediately.
+	err = clientset.CoreV1().Nodes().Delete(nodeName, metav1.NewDeleteOptions(0))
+	Expect(err).NotTo(HaveOccurred())
+
+	// Wait for node to disappear.
+	Eventually(func() error {
+		_, err := clientset.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
+		if kerrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("Node %s still exists", nodeName)
+	}, "5s", "200ms").Should(BeNil())
+}
+
 var _ = Describe("Kubernetes CNI tests", func() {
 	// Create a random seed
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -108,7 +134,7 @@ var _ = Describe("Kubernetes CNI tests", func() {
 		// Create the node for these tests. The IPAM code requires a corresponding Calico node to exist.
 		name, err := names.Hostname()
 		Expect(err).NotTo(HaveOccurred())
-		err = utils.AddNode(calicoClient, k8sClient, name)
+		err = testutils.AddNode(calicoClient, k8sClient, name)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -116,7 +142,7 @@ var _ = Describe("Kubernetes CNI tests", func() {
 		// Delete the node.
 		name, err := names.Hostname()
 		Expect(err).NotTo(HaveOccurred())
-		err = utils.DeleteNode(calicoClient, k8sClient, name)
+		err = testutils.DeleteNode(calicoClient, k8sClient, name)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -771,6 +797,8 @@ var _ = Describe("Kubernetes CNI tests", func() {
 
 					ensureNamespace(clientset, testutils.K8S_TEST_NS)
 
+					ensureNodeDeleted(clientset, hostname)
+
 					// Create a K8s Node object with PodCIDR and name equal to hostname.
 					_, err = clientset.CoreV1().Nodes().Create(&v1.Node{
 						ObjectMeta: metav1.ObjectMeta{Name: hostname},
@@ -778,21 +806,8 @@ var _ = Describe("Kubernetes CNI tests", func() {
 							PodCIDR: "10.0.0.0/24",
 						},
 					})
-					if err != nil {
-						if kerrors.IsAlreadyExists(err) {
-							err = nil
-							err := clientset.CoreV1().Nodes().Delete(hostname, &metav1.DeleteOptions{})
-							log.WithError(err).Info("node deleted")
-							_, err = clientset.CoreV1().Nodes().Create(&v1.Node{
-								ObjectMeta: metav1.ObjectMeta{Name: hostname},
-								Spec: v1.NodeSpec{
-									PodCIDR: "10.0.0.0/24",
-								},
-							})
-						}
-					}
 					Expect(err).NotTo(HaveOccurred())
-					defer clientset.CoreV1().Nodes().Delete(hostname, &metav1.DeleteOptions{})
+					defer ensureNodeDeleted(clientset, hostname)
 
 					By("Creating a pod with a specific IP address")
 					name := fmt.Sprintf("run%d", rand.Uint32())

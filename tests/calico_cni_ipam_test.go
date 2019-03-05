@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	"github.com/projectcalico/cni-plugin/internal/pkg/testutils"
-	"github.com/projectcalico/cni-plugin/internal/pkg/utils"
 	client "github.com/projectcalico/libcalico-go/lib/clientv3"
 	"github.com/projectcalico/libcalico-go/lib/ipam"
 	"github.com/projectcalico/libcalico-go/lib/names"
@@ -47,7 +46,7 @@ var _ = Describe("Calico IPAM Tests", func() {
 		var name string
 		name, err = names.Hostname()
 		Expect(err).NotTo(HaveOccurred())
-		err = utils.AddNode(calicoClient, k8sClient, name)
+		err = testutils.AddNode(calicoClient, k8sClient, name)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -55,7 +54,7 @@ var _ = Describe("Calico IPAM Tests", func() {
 		// Delete the node.
 		name, err := names.Hostname()
 		Expect(err).NotTo(HaveOccurred())
-		err = utils.DeleteNode(calicoClient, k8sClient, name)
+		err = testutils.DeleteNode(calicoClient, k8sClient, name)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
